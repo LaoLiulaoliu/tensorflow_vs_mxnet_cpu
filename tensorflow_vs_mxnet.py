@@ -120,10 +120,10 @@ def load_keras(X, Y, learning_rate):
 
 class LSTM(gluon.nn.Block):
     """
-        input:     (1077, 1, 51)
-        LSTM:      (51, 64) -> (1077, 1, 64)
-        drop:              -> (1077, 1, 64)
-        decoder:           -> (1077, 1)
+        input:   (1077, 1, 51)
+        LSTM:    (51, 64) -> (1077, 1, 64)
+        dense:            -> (1077, 1)
+        decoder:          -> (1077, 1)
     """
 
     def __init__(self, num_hiddens, input_size):
