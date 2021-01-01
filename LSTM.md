@@ -66,5 +66,5 @@ How to preprocess data for LSTM algorithm?
 
   n 个词，n个input，n个output，**IMDB sentiment label 是正负的分类，计算loss(output[-1], label)**，反向传播求导，改变LSTM网络参数值。
 
-  中间记忆状态一直保持。
+  中间记忆状态一直保持，因为全部数据都是情感数据，可以不重置记忆状态。
 
