@@ -4,9 +4,13 @@
 import collections
 import os
 import random
+import time
 import tarfile
 import mxnet as mx
 from mxnet import gluon, nd
+
+VOCAB_SIZE = 20000
+MAX_SENTENCE_LEN = 512
 
 
 def download_imdb(data_dir='./data'):
@@ -24,7 +28,7 @@ def read_imdb(folder='train'):
         for file in os.listdir(folder_name):
             with open(os.path.join(folder_name, file), 'rb') as f:
                 review = f.read().decode('utf-8').replace('\n', '').lower()
-                data.append([review, 1 if label == 'pos' else 0]) 
+                data.append([review, 1 if label == 'pos' else 0])
     random.shuffle(data)
     return data
 
@@ -54,12 +58,25 @@ def preprocess_imdb(data, vocab):
 
 
 class TextCNN(gluon.nn.Block):
-    def __init__(self, vocab, embed_size, kernel_sizes, num_channels,
+    """ batch_size = 256
+        sentence_length = 512
+        vocabulary_size = 20000
+        embedding_size = 100
+
+        input: (256, 512)          -> (512, 256, 20000) one_hot
+        embedding: (20000, 100)    -> (256, 512, 100)
+        concat:                    -> (256, 512, 200)
+        transpose:                 -> (256, 200, 512)
+        pool:       -> (256, 300)
+        decoder:    -> (256, 2)
+    """
+
+    def __init__(self, embed_size, kernel_sizes, num_channels,
                  **kwargs):
         super(TextCNN, self).__init__(**kwargs)
-        self.embedding = gluon.nn.Embedding(len(vocab), embed_size)
+        self.embedding = gluon.nn.Embedding(VOCAB_SIZE, embed_size)
         # 不参与训练的嵌入层
-        self.constant_embedding = gluon.nn.Embedding(len(vocab), embed_size)
+        self.constant_embedding = gluon.nn.Embedding(VOCAB_SIZE, embed_size)
         self.dropout = gluon.nn.Dropout(0.5)
         self.decoder = gluon.nn.Dense(2)
         # 时序最大池化层没有权重，所以可以共用一个实例
@@ -83,45 +100,42 @@ class TextCNN(gluon.nn.Block):
         return outputs
 
 
-def train(train_iter, test_iter, net, loss, trainer, ctx, batch_size, num_epochs):
+def train(train_iter, test_iter, net, loss, trainer, ctx, num_epochs):
     print('training on', ctx)
     for epoch in range(num_epochs):
-        train_l_sum, train_acc_sum, n, m, start = 0.0, 0.0, 0, 0, time.time()
-        train_iter = mx.io.NDArrayIter(features, labels, batch_size,
-                                       shuffle=False,
-                                       last_batch_handle='discard')
-        for i, batch in enumerate(train_iter):
+        train_loss_sum, train_acc_sum, loss_count, m, start = 0.0, 0.0, 0, 0, time.time()
+        for batch in train_iter:
+            features, labels = batch  # (256, 512) (256,)
             with mx.autograd.record():
-                y_hats = [net(X) for X in batch.data]  # [(256, 512)]
-                ls = [loss(y_hat, y) for y_hat, y in zip(y_hats, batch.label)]  # [(256, 2)]，[(256,)]
+                y_hats = net(features)
+                l = loss(y_hats, labels)  # (256, 2) (256,)
 
-            for l in ls: 
-                l.backward()
-            trainer.step(len(batch.label[0]))
+            l.backward()
+            trainer.step(features.shape[0])
 
-            train_l_sum += sum([l.sum().asscalar() for l in ls])
-            n += sum([l.size for l in ls])
-            train_acc_sum += sum([(y_hat.argmax(axis=1) == y).sum().asscalar()
-                                  for y_hat, y in zip(y_hats, batch.label)])
-            m += sum([y.size for y in batch.label])
-        print('epoch %d, loss %.4f, train acc %.3f, time %.1f sec' % ( 
-        epoch + 1, train_l_sum / n, train_acc_sum / m, time.time() - start))
+            train_loss_sum += l.sum().asscalar()
+            loss_count += l.size
+            train_acc_sum += (y_hats.argmax(axis=1) == labels).sum().asscalar()
+            m += labels.size
+        print('epoch %d, loss %.4f, train acc %.3f, time %.1f sec' % (
+            epoch + 1, train_loss_sum / loss_count, train_acc_sum / m, time.time() - start))
 
-batch_size = 64
+
+batch_size = 256
 train_data, test_data = read_imdb('train'), read_imdb('test')
 vocab = get_vocab_imdb(train_data)
+feature, label = preprocess_imdb(train_data, vocab)
 train_iter = gluon.data.DataLoader(gluon.data.ArrayDataset(
-    *d2l.preprocess_imdb(train_data, vocab)), batch_size, shuffle=True)
+    *preprocess_imdb(train_data, vocab)), batch_size, shuffle=True)
 test_iter = gluon.data.DataLoader(gluon.data.ArrayDataset(
-    *d2l.preprocess_imdb(test_data, vocab)), batch_size)
-
+    *preprocess_imdb(test_data, vocab)), batch_size)
 
 embed_size, kernel_sizes, nums_channels = 100, [3, 4, 5], [100, 100, 100]
 ctx = [mx.cpu()]
-net = TextCNN(vocab, embed_size, kernel_sizes, nums_channels)
-net.initialize(init.Xavier(), ctx=ctx)
+net = TextCNN(embed_size, kernel_sizes, nums_channels)
+net.initialize(mx.init.Xavier(), ctx=ctx)
 
 lr, num_epochs = 0.001, 5
 trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': lr})
 loss = gluon.loss.SoftmaxCrossEntropyLoss()
-train(train_iter, test_iter, net, loss, trainer, ctx, batch_size, num_epochs)
+train(train_iter, test_iter, net, loss, trainer, ctx, num_epochs)
