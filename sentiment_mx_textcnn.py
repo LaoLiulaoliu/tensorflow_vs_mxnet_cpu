@@ -67,12 +67,14 @@ class TextCNN(gluon.nn.Block):
         embedding: (20000, 100)    -> (256, 512, 100)
         concat:                    -> (256, 512, 200)
         transpose:                 -> (256, 200, 512)
-        pool:       -> (256, 300)
+        conv:       -> (256, 100, 510) (256, 100, 509) (256, 100, 508)
+        pool:       -> (256, 100, 1)   (256, 100, 1)   (256, 100, 1)
+        flatten:    -> (256, 100)      (256, 100)      (256, 100)
+        concat:     -> (256, 3*100)
         decoder:    -> (256, 2)
     """
 
-    def __init__(self, embed_size, kernel_sizes, num_channels,
-                 **kwargs):
+    def __init__(self, embed_size, kernel_sizes, num_channels, **kwargs):
         super(TextCNN, self).__init__(**kwargs)
         self.embedding = gluon.nn.Embedding(VOCAB_SIZE, embed_size)
         # 不参与训练的嵌入层
@@ -91,10 +93,11 @@ class TextCNN(gluon.nn.Block):
             self.embedding(inputs), self.constant_embedding(inputs), dim=2)
         # 根据Conv1D要求的输入格式，将词向量维，即一维卷积层的通道维，变换到前一维
         embeddings = embeddings.transpose((0, 2, 1))
-        # 对于每个一维卷积层，在时序最大池化后会得到一个形状为(批量大小, 通道大小, 1)的
-        # NDArray。使用flatten函数去掉最后一维，然后在通道维上连结
-        encoding = nd.concat(*[nd.flatten(
-            self.pool(conv(embeddings))) for conv in self.convs], dim=1)
+        # 对于每个一维卷积层，在时序最大池化后会得到一个形状为(批量大小, 通道大小, 1) NDArray
+        # flatten函数去掉最后一维，然后在通道维上连结
+        encoding = nd.concat(
+            *[nd.flatten(self.pool(conv(embeddings))) for conv in self.convs],
+            dim=1)
         # 应用丢弃法后使用全连接层得到输出
         outputs = self.decoder(self.dropout(encoding))
         return outputs
@@ -104,8 +107,7 @@ def train(train_iter, test_iter, net, loss, trainer, ctx, num_epochs):
     print('training on', ctx)
     for epoch in range(num_epochs):
         train_loss_sum, train_acc_sum, loss_count, m, start = 0.0, 0.0, 0, 0, time.time()
-        for batch in train_iter:
-            features, labels = batch  # (256, 512) (256,)
+        for features, labels in train_iter:  # (256, 512) (256,)
             with mx.autograd.record():
                 y_hats = net(features)
                 l = loss(y_hats, labels)  # (256, 2) (256,)
