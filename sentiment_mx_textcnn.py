@@ -63,7 +63,7 @@ class TextCNN(gluon.nn.Block):
         vocabulary_size = 20000
         embedding_size = 100
 
-        input: (256, 512)          -> (512, 256, 20000) one_hot
+        input: (256, 512)          -> (512, 256, 20000) implicit one_hot
         embedding: (20000, 100)    -> (256, 512, 100)
         concat:                    -> (256, 512, 200)
         transpose:                 -> (256, 200, 512)
