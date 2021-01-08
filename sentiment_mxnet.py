@@ -63,7 +63,7 @@ class BiRNN(gluon.nn.Block):
 
         input:     (256, 512)  -> (512, 256, 20000) one_hot
         Embedding: (20000, 64) -> (512, 256, 64) each time 256 words
-        LSTM:      (64, 2*128) -> (512, 256, 2*128)
+        LSTM:      (64, 2*128) -> (512, 256, 2*128) 2 is bidirection
         concat:                -> (256, 4*128)
         decoder:               -> (256, 2)
     """
