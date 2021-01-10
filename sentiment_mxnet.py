@@ -59,7 +59,7 @@ class BiRNN(gluon.nn.Block):
         sentence_length = 512
         vocabulary_size = 20000
         embedding_size = 64
-        num_hiddens = 128
+        num_hiddens = 128 过小预测不准，过大资源不够
 
         input:     (256, 512)  -> (512, 256, 20000) one_hot
         Embedding: (20000, 64) -> (512, 256, 64) each time 256 words
