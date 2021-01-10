@@ -68,12 +68,16 @@ class BiRNN(gluon.nn.Block):
         decoder:               -> (256, 2)
     """
 
-    def __init__(self, embed_size, batch_size, num_hiddens, num_layers, **kwargs):
+    def __init__(self, embed_size, batch_size, num_hiddens, num_layers, model='LSTM', **kwargs):
         super(BiRNN, self).__init__(**kwargs)
         self.embedding = gluon.nn.Embedding(VOCAB_SIZE, embed_size)
         # bidirectional设为True即得到双向循环神经网络
-        self.encoder = gluon.rnn.LSTM(num_hiddens, num_layers=num_layers,
-                                      bidirectional=True, input_size=embed_size)
+        if model == 'LSTM':
+            self.encoder = gluon.rnn.LSTM(num_hiddens, num_layers=num_layers,
+                                          bidirectional=True, input_size=embed_size)
+        elif model == 'GRU':
+            self.encoder = gluon.rnn.GRU(num_hiddens, num_layers=num_layers,
+                                         bidirectional=True, input_size=embed_size)
         self.decoder = gluon.nn.Dense(2)
 
     def forward(self, inputs):
