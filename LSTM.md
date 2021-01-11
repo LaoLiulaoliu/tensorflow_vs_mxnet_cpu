@@ -39,7 +39,7 @@ How to preprocess data for LSTM algorithm?
 
   **(p, q) reshape (p, 1, q) 放入LSTM，LSTM网络初始化要用到q 是input_size，1 是batch_size。**
 
-  中间记忆状态一直保持。如果换地区，则中间记忆状态要detach，重置在RNN中记忆状态（参数）。
+  因为死亡人数增长的训练不依赖于其他的国家地区，反向传播仅在一个国家内，换国家地区，则中间记忆状态要detach，重置在RNN中记忆状态参数，同时提高训练速度。预测时，每个国家初始化中间记忆状态。
 
 
 ### Scene 2: Sentiment Analysis
@@ -64,7 +64,16 @@ How to preprocess data for LSTM algorithm?
 
   LSTM 一个input，对应一个output和一个中间记忆状态。
 
-  n 个词，n个input，n个output，**IMDB sentiment label 是正负的分类，计算loss(output[-1], label)**，反向传播求导，改变LSTM网络参数值。
+  n 个词，n个input，n个output，中间output都丢掉了，只用最后一个output算loss和反向传播，如果是双向LSTM，只保留第一个和最后一个output。**IMDB sentiment label 是正负的分类，计算loss(output[-1], label)**，反向传播求导，改变LSTM网络参数值。
 
-  中间记忆状态一直保持，因为全部数据都是情感数据，可以不重置记忆状态。
+  重置中间记忆状态，这样反向传播只在一句一段之内，提高训练速度。预测时，每条数据初始化中间记忆状态。
 
+
+### stateful and stateless
+
+LSTM有输入门，输出门，遗忘门，记忆细胞组成6个公式。
+
+遗忘门可以对上一时刻记忆细胞选择留下多少，进而达到“中间记忆状态重置”的效果，如果训练自然语言，在句子末尾加上<eos>，让LSTM遗忘门学到这个符号的含义。
+
+Tensorflow Keras 的LSTM有stateful 选项。stateful就是一直保存中间状态，stateless就是一批或几批训练后，重置中间记忆状态。为了提高反向传播的效率，一般都是stateless，有些情况比如预测第1001句话就需要stateful。
+model.reset_states()来重置模型中所有层的状态，layer.reset_states()来重置指定有状态 RNN 层的状态。
