@@ -75,5 +75,6 @@ LSTM有输入门，输出门，遗忘门，记忆细胞组成6个公式。
 
 遗忘门可以对上一时刻记忆细胞选择留下多少，进而达到“中间记忆状态重置”的效果，如果训练自然语言，在句子末尾加上<eos>，让LSTM遗忘门学到这个符号的含义。
 
-Tensorflow Keras 的LSTM有stateful 选项。stateful就是一直保存中间状态，stateless就是一批或几批训练后，重置中间记忆状态。为了提高反向传播的效率，一般都是stateless，有些情况比如预测第1001句话就需要stateful。
-model.reset_states()来重置模型中所有层的状态，layer.reset_states()来重置指定有状态 RNN 层的状态。
+> Tensorflow Keras 的LSTM有stateful 选项。stateful就是一直保存中间状态，stateless就是一批或几批训练后，重置中间记忆状态。为了提高反向传播的效率，一般都是stateless，有些情况比如预测第1001句话就需要stateful。
+>
+> model.reset_states()来重置模型中所有层的状态，layer.reset_states()来重置指定有状态 RNN 层的状态。
