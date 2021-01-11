@@ -66,7 +66,7 @@ How to preprocess data for LSTM algorithm?
 
   n 个词，n个input，n个output，中间output都丢掉了，只用最后一个output算loss和反向传播，如果是双向LSTM，只保留第一个和最后一个output。**IMDB sentiment label 是正负的分类，计算loss(output[-1], label)**，反向传播求导，改变LSTM网络参数值。
 
-  重置中间记忆状态，这样反向传播只在一句一段之内，提高训练速度。预测时，每条数据初始化中间记忆状态。
+  中间记忆状态，每一个batch正向计算一次，同时反向传播计算一次。接着重置中间记忆状态，这样反向传播只在一句一段之内，提高训练速度。预测时，每条数据初始化中间记忆状态。
 
 
 ### stateful and stateless
