@@ -74,6 +74,7 @@ def gen_lstm_data(data, step=10):
 def build_lstm_model(X, learning_rate):
     model = keras.Sequential()
     model.add(keras.layers.LSTM(64, input_shape=(X.shape[1], X.shape[2])))
+    # keras.layers.LSTM(64, batch_input_shape=(1, X.shape[1], X.shape[2]), stateful=True) # keep the cell status
     model.add(keras.layers.Dense(1))
     model.add(keras.layers.Dropout(0.01))
     model.add(keras.layers.Dense(1))
