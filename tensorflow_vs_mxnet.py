@@ -8,15 +8,21 @@ import tensorflow as tf
 from tensorflow import keras
 
 import mxnet as mx
-from mxnet import gluon, nd
 
 from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_score
 
 
 def downsample_filter_normalization(fname):
     df = pd.read_csv(fname)
     df['time'] = df['time'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M', time.localtime(0.001 * x)))
     df = df.groupby('time').agg(lambda x: np.mean(x)).reset_index()
+
+#    df.index = df.pop('time')
+#    base = df.index[-1]
+#    df = df.resample('60S', closed='right', label='right', base=base.second).mean()
+
     df = df[(df['primary_air_rate'] > 0) & (df['primary_air_rate'] < 0.9)]  # in this data, no row lose
 
     columns_without_time = df.columns.to_list()
@@ -30,35 +36,30 @@ def downsample_filter_normalization(fname):
 
 
 def build_data(df):
-    """inputs按分钟聚合，临近5min数据拼一行，每行数据时间上要求是顺序相连的。如果当前时间是t，则这一行包含[t-5, t] 的所有数据
-        取出y，删除t-1, t-2 的y，和时间列。如果这一行有空值数据则删除此行。
+    """inputs按分钟聚合，临近5min数据拼一行，每行数据时间上要求是顺序相连的。如果当前时间是t，则这一行包含[t-5, t-1] 的所有数据.
+       取出y，删除t-1, t-2 的y，和时间列。如果这一行有空值数据则删除此行。
     """
     steps = 5
-    correlated = 3
+    irrelevant = 2
+    data = None
+    labels = []
+
     convert_strtime_datetime = functools.partial(datetime.strptime)
     time_column = list(map(lambda x: convert_strtime_datetime(x, '%Y-%m-%d %H:%M'), df['time']))
-    Y = []
 
-    data = None
     for t in range(len(time_column) - 1, steps - 1, -1):
         time_difference = timedelta(seconds=60)
-        item = None
+        item = np.empty(0)
         for i in range(1, steps + 1):
             if time_column[t] - time_column[t - i] != time_difference * i:
                 break
         else:
-            item = df.iloc[t, 1:].values
-            Y.append(item[-1])
-            item = item[:-1]
             for i in range(1, steps + 1):
-                if i >= correlated:
-                    item = np.hstack((item, df.iloc[t - i, 1:].values))
-                else:
-                    item = np.hstack((item, df.iloc[t - i, 1:-1].values))
+                item = np.hstack((item, df.iloc[t - i, 1:-1].values)) if i <= irrelevant else np.hstack((item, df.iloc[t - i, 1:].values))
 
-        if item is not None:
             data = np.vstack((data, item)) if data is not None else item
-    return data, np.asarray(Y).reshape((-1, 1))
+            labels.append(df.iloc[t, -1])
+    return data, np.asarray(labels).reshape((-1, 1))
 
 
 def gen_lstm_data(data, step=10):
@@ -74,7 +75,7 @@ def gen_lstm_data(data, step=10):
 def build_lstm_model(X, learning_rate):
     model = keras.Sequential()
     model.add(keras.layers.LSTM(64, input_shape=(X.shape[1], X.shape[2])))
-    # keras.layers.LSTM(64, batch_input_shape=(1, X.shape[1], X.shape[2]), stateful=True) # keep the cell status
+    # keras.layers.LSTM(64, batch_input_shape=(1, 1, X.shape[2]), stateful=True) # keep the cell status
     model.add(keras.layers.Dense(1))
     model.add(keras.layers.Dropout(0.01))
     model.add(keras.layers.Dense(1))
@@ -119,7 +120,7 @@ def load_keras(X, Y, learning_rate):
     print('keras percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
 
 
-class LSTM(gluon.nn.Block):
+class LSTM(mx.gluon.nn.Block):
     """
         input:   (1077, 1, 51)
         LSTM:    (51, 64) -> (1077, 1, 64)
@@ -129,10 +130,10 @@ class LSTM(gluon.nn.Block):
 
     def __init__(self, num_hiddens, input_size):
         super(LSTM, self).__init__()
-        self.encoder = gluon.rnn.LSTM(hidden_size=num_hiddens, input_size=input_size)
-        self.middle = gluon.nn.Dense(1)
-        self.drop = gluon.nn.Dropout(0.01)
-        self.decoder = gluon.nn.Dense(1)
+        self.encoder = mx.gluon.rnn.LSTM(hidden_size=num_hiddens, input_size=input_size)
+        self.middle = mx.gluon.nn.Dense(1)
+        self.drop = mx.gluon.nn.Dropout(0.01)
+        self.decoder = mx.gluon.nn.Dense(1)
 
     def forward(self, inputs):
         outputs = self.encoder(inputs)
@@ -141,8 +142,9 @@ class LSTM(gluon.nn.Block):
 
 
 def train(features, labels, num_epochs, net, trainer, loss, validation_x=None, validation_y=None):
+    start = time.time()
     for epoch in range(num_epochs):
-        train_l_sum, train_acc_sum, n, m, start = 0.0, 0.0, 0, 0, time.time()
+        train_l_sum, n = 0.0, 0
 
         with mx.autograd.record():
             y_hat = net(features)
@@ -156,21 +158,21 @@ def train(features, labels, num_epochs, net, trainer, loss, validation_x=None, v
 
         if validation_x is not None:
             validation_loss = loss(net(validation_x), validation_y).mean().asscalar()
-            msg = 'epoch %d, train_loss %.4f, validation_loss %.4f, time %.4fs' % (
-            epoch + 1, train_l_sum / n, validation_loss, time.time() - start)
+            msg = 'epoch %d, train_loss %.4f, validation_loss %.4f, %.4fs/epoch' % (
+            epoch + 1, train_l_sum / n, validation_loss, (time.time() - start) / (epoch + 1))
         else:
-            msg = 'epoch %d, train_loss %.4f, time %.4fs' % (epoch + 1, train_l_sum / n, time.time() - start)
+            msg = 'epoch %d, train_loss %.4f, %.4fs/epoch' % (epoch + 1, train_l_sum / n, (time.time() - start) / (epoch + 1))
         #print(msg)
 
 
 def run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x=None, validation_y=None):
-    loss = gluon.loss.L2Loss()
     net = LSTM(64, train_x.shape[2])
     net.initialize(mx.init.Xavier())
     net.hybridize()
-    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': learning_rate})
-    train(nd.array(train_x), nd.array(train_y), num_epochs, net, trainer, loss, nd.array(validation_x),
-          nd.array(validation_y))
+    trainer = mx.gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': learning_rate})
+    loss = mx.gluon.loss.L2Loss()
+    train(mx.nd.array(train_x), mx.nd.array(train_y), num_epochs, net, trainer, loss, mx.nd.array(validation_x),
+          mx.nd.array(validation_y))
     net.save_parameters('./mxnet.net')
 
 
@@ -183,10 +185,16 @@ def load_mxnet(X, Y):
     loaded = time.time()
     print(f'mxnet load weights cost: {loaded - start}s')
 
-    Y_hat = net(nd.array(X)).asnumpy()
+    Y_hat = net(mx.nd.array(X)).asnumpy()
     print(f'mxnet predict one average cost: {(time.time() - loaded) / Y_hat.size}s')
     print(f'mxnet r2 score: {r2_score(Y_hat, Y)}')
     print('mxnet percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
+
+
+def linear_model_way(train_x, train_y):
+    lr = LinearRegression()
+    scores = cross_val_score(lr, train_x, train_y, cv=3, scoring='r2')
+    print(scores) # [0.88790513 0.78219812 0.75124809]
 
 
 def main():
@@ -201,6 +209,8 @@ def main():
     train_y = Y[:validation_factor]
     validation_x = data[validation_factor:, :]
     validation_y = Y[validation_factor:]
+
+    linear_model_way(train_x, train_y)
 
     batch_size = 1
     m, n = train_x.shape
@@ -220,8 +230,8 @@ def main():
     # keras percentage error: 2.8355%
     # whole time: 161.03141260147095
     learning_rate = 1e-4
-#    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
-#    load_keras(validation_x, validation_y, learning_rate)
+    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
+    load_keras(validation_x, validation_y, learning_rate)
     print(f'keras whole time: {time.time() - s}')
 
     # mxnet load weights cost: 0.004607439041137695s
