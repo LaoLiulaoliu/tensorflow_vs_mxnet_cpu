@@ -162,7 +162,8 @@ def train(features, labels, num_epochs, net, trainer, loss, validation_x=None, v
             epoch + 1, train_l_sum / n, validation_loss, (time.time() - start) / (epoch + 1))
         else:
             msg = 'epoch %d, train_loss %.4f, %.4fs/epoch' % (epoch + 1, train_l_sum / n, (time.time() - start) / (epoch + 1))
-        #print(msg)
+        if epoch & 63 == 0:
+            print(msg)
 
 
 def run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x=None, validation_y=None):
@@ -200,7 +201,7 @@ def linear_model_way(train_x, train_y):
 def main():
     df = downsample_filter_normalization('datas.csv')
     data, Y = build_data(df)
-    print(df.shape, data.shape, Y.shape)  # (1441, 10) (1436, 51) (1436, 1)
+    print(df.shape, data.shape, Y.shape)  # (1441, 10) (1436, 43) (1436, 1)
     data = data.astype('float32')
     # Y = Y.astype('float32')
 
@@ -219,10 +220,9 @@ def main():
     validation_x = validation_x.reshape((m, batch_size, n))
 
     print(train_x.shape, train_y.shape, validation_x.shape,
-          validation_y.shape)  # (1077, 1, 51) (1077, 1) (359, 1, 51) (359, 1)
+          validation_y.shape)  # (1077, 1, 43) (1077, 1) (359, 1, 43) (359, 1)
 
     s = time.time()
-    num_epochs = 100
 
     # keras load weights cost: 0.18310260772705078s
     # keras predict one average cost: 0.000997248466300433s
@@ -230,6 +230,7 @@ def main():
     # keras percentage error: 2.8355%
     # whole time: 161.03141260147095
     learning_rate = 1e-4
+    num_epochs = 10
     train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
     load_keras(validation_x, validation_y, learning_rate)
     print(f'keras whole time: {time.time() - s}')
@@ -240,7 +241,8 @@ def main():
     # mxnet percentage error: 3.436%
     # whole time: 1.1297211647033691
     s = time.time()
-    learning_rate = 1e-3
+    learning_rate = 0.002
+    num_epochs = 100
     run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x, validation_y)
     load_mxnet(validation_x, validation_y)
 
