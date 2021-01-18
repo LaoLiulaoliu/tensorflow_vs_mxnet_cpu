@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import functools
 import time
+import pickle
 from datetime import datetime, timedelta
 
 import tensorflow as tf
@@ -13,12 +14,13 @@ from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_score
 
+INPUT_SIZE_STR = 'input_size_str'
+
 
 def downsample_filter_normalization(fname):
     df = pd.read_csv(fname)
     df['time'] = df['time'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M', time.localtime(0.001 * x)))
     df = df.groupby('time').agg(lambda x: np.mean(x)).reset_index()
-
 
 #    df.index = pd.to_datetime(df.pop('time'), unit='ms') + pd.Timedelta('08:00:00')
 #    base = df.index[-1]
@@ -121,7 +123,7 @@ def load_keras(X, Y, learning_rate):
     print('keras percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
 
 
-class LSTM(mx.gluon.nn.Block):
+class LSTMNet(mx.gluon.nn.Block):
     """
         input:   (1077, 1, 51)
         LSTM:    (51, 64) -> (1077, 1, 64)
@@ -130,7 +132,7 @@ class LSTM(mx.gluon.nn.Block):
     """
 
     def __init__(self, num_hiddens, input_size):
-        super(LSTM, self).__init__()
+        super(LSTMNet, self).__init__()
         self.encoder = mx.gluon.rnn.LSTM(hidden_size=num_hiddens, input_size=input_size)
         self.middle = mx.gluon.nn.Dense(1)
         self.drop = mx.gluon.nn.Dropout(0.01)
@@ -167,21 +169,45 @@ def train(features, labels, num_epochs, net, trainer, loss, validation_x=None, v
             print(msg)
 
 
+def save_mxnet_model(net, fname, input_size):
+    params = net._collect_params_with_prefix()
+    model = {key: val._reduce() for key, val in params.items()}
+    model[INPUT_SIZE_STR] = input_size
+    with open(fname, 'wb') as fd:
+        pickle.dump(model, fd)
+
+
+def load_mxnet_model(fname):
+    with open(fname, 'rb') as fd:
+        model = pickle.load(fd)
+    input_size = model.pop(INPUT_SIZE_STR)
+
+    net = LSTMNet(64, input_size)
+    params = net._collect_params_with_prefix()
+    for name in model:
+        if name in params:
+            params[name]._load_init(model[name], mx.cpu(), cast_dtype=False, dtype_source='current')
+
+    return net
+
+
 def run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x=None, validation_y=None):
-    net = LSTM(64, train_x.shape[2])
+    input_size = train_x.shape[2]
+    net = LSTMNet(64, input_size)
     net.initialize(mx.init.Xavier())
     net.hybridize()
     trainer = mx.gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': learning_rate})
     loss = mx.gluon.loss.L2Loss()
     train(mx.nd.array(train_x), mx.nd.array(train_y), num_epochs, net, trainer, loss, mx.nd.array(validation_x),
           mx.nd.array(validation_y))
-    net.save_parameters('./mxnet.net')
+    save_mxnet_model(net, './mxnet.net', input_size) # net.save_parameters('./mxnet.net')
 
 
 def load_mxnet(X, Y):
     start = time.time()
-    net = LSTM(64, X.shape[2])
-    net.load_parameters('./mxnet.net')
+    net = load_mxnet_model('./mxnet.net')
+    # net = LSTMNet(64, X.shape[2])
+    # net.load_parameters('./mxnet.net')
     net.hybridize()
 
     loaded = time.time()
@@ -243,7 +269,7 @@ def main():
     # whole time: 1.1297211647033691
     s = time.time()
     learning_rate = 0.002
-    num_epochs = 100
+    num_epochs = 300
     run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x, validation_y)
     load_mxnet(validation_x, validation_y)
 
