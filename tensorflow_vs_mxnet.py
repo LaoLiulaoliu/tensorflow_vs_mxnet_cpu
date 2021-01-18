@@ -19,7 +19,8 @@ def downsample_filter_normalization(fname):
     df['time'] = df['time'].apply(lambda x: time.strftime('%Y-%m-%d %H:%M', time.localtime(0.001 * x)))
     df = df.groupby('time').agg(lambda x: np.mean(x)).reset_index()
 
-#    df.index = df.pop('time')
+
+#    df.index = pd.to_datetime(df.pop('time'), unit='ms') + pd.Timedelta('08:00:00')
 #    base = df.index[-1]
 #    df = df.resample('60S', closed='right', label='right', base=base.second).mean()
 
