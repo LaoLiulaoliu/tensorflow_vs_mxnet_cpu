@@ -86,13 +86,12 @@ def batchify(data):
 
 
 def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
-    v = embed_v(center)
-    u = embed_u(contexts_and_negatives)
-    pred = nd.batch_dot(v, u.swapaxes(1, 2))
-    return pred
+    v = embed_v(center)  # (512, 1, 100)
+    u = embed_u(contexts_and_negatives)  #  (512, 60, 100)
+    return nd.batch_dot(v, u.swapaxes(1, 2))  # (512, 1, 60)
 
 
-def train(net, loss, lr, num_epochs):
+def training_procedure(net, loss, lr, num_epochs):
     net.initialize(force_reinit=True)
     trainer = gluon.Trainer(net.collect_params(), 'adam',
                             {'learning_rate': lr})
@@ -118,7 +117,6 @@ def train(net, loss, lr, num_epochs):
 
 def varname(p):
     for line in inspect.getframeinfo(inspect.currentframe().f_back)[3]:
-        print(line)
         m = re.search(r'\bvarname\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)', line)
         if m:
             return m.group(1)
@@ -156,28 +154,33 @@ def get_similar_tokens(query_token, k, embed):
     cos = nd.dot(W, x) / (nd.sum(W * W, axis=1) * nd.sum(x * x) + 1e-9).sqrt()
     topk = nd.topk(cos, k=k+1, ret_typ='indices').asnumpy().astype('int32')
     for i in topk[1:]:  # 除去输入词
-        print('cosine sim=%.3f: %s' % (cos[i].asscalar(), (idx_to_token[i])))
+        print('cosine similarity=%.3f: %s' % (cos[i].asscalar(), (idx_to_token[i])))
 
 
-all_centers, all_contexts = get_centers_and_contexts(subsampled_dataset, 5)
-sampling_weights = [counter[word]**0.75 for word in idx_to_token]
-all_negatives = get_negatives(all_contexts, sampling_weights, 5)
+def train():
+    all_centers, all_contexts = get_centers_and_contexts(subsampled_dataset, 5)
+    sampling_weights = [counter[word]**0.75 for word in idx_to_token]
+    all_negatives = get_negatives(all_contexts, sampling_weights, 5)
 
-batch_size = 512
-num_workers = 1
-dataset = gluon.data.ArrayDataset(all_centers, all_contexts, all_negatives)
-data_iter = gluon.data.DataLoader(dataset, batch_size, shuffle=True,
-                             batchify_fn=batchify, num_workers=num_workers)
+    batch_size = 512
+    num_workers = 1
+    dataset = gluon.data.ArrayDataset(all_centers, all_contexts, all_negatives)
+    data_iter = gluon.data.DataLoader(dataset, batch_size, shuffle=True,
+                                 batchify_fn=batchify, num_workers=num_workers)
 
 
-embed_size = 100
-net = gluon.nn.Sequential()
-net.add(gluon.nn.Embedding(input_dim=len(idx_to_token), output_dim=embed_size, sparse_grad=True),
-        gluon.nn.Embedding(input_dim=len(idx_to_token), output_dim=embed_size, sparse_grad=True))
+    embed_size = 100
+    net = gluon.nn.Sequential()
+    net.add(gluon.nn.Embedding(input_dim=len(idx_to_token), output_dim=embed_size, sparse_grad=True),
+            gluon.nn.Embedding(input_dim=len(idx_to_token), output_dim=embed_size, sparse_grad=True))
 
-loss = gluon.loss.SigmoidBinaryCrossEntropyLoss()
+    loss = gluon.loss.SigmoidBinaryCrossEntropyLoss()
 
-train(net, loss, 0.01, 50)
-save_mxnet_model(net, 'skipgram_embed', embed_size)
+    training_procedure(net, loss, 0.01, 50)
+    save_mxnet_model(net, 'skipgram_embed', embed_size)
 
-get_similar_tokens('costume', 3, net[0])
+def predict():
+    net = load_mxnet_model('skipgram_embed')
+    get_similar_tokens('customer', 3, net[0])
+
+predict()
