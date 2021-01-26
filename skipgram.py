@@ -28,8 +28,8 @@ num_tokens = sum([len(sentence) for sentence in dataset])
 
 def discard(idx):
     z = 1000 * counter[idx_to_token[idx]] / num_tokens
-    return random.uniform(0, 1) > (np.sqrt(z) + 1) / z # in code
     return random.uniform(0, 1) < 1 - np.sqrt(1e-4 * num_tokens / counter[idx_to_token[idx]]) # in paper
+    return random.uniform(0, 1) > (np.sqrt(z) + 1) / z # in code
 
 subsampled_dataset = [[token for token in sentence if not discard(token)] for sentence in dataset]
 
