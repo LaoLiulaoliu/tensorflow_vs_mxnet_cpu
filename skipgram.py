@@ -1,13 +1,15 @@
 import collections
-import math
 import random
 import sys
 import time
 import inspect
 import re
 import pickle
+import numpy as np
 import mxnet as mx
 from mxnet import gluon, nd
+
+# https://arxiv.org/pdf/1310.4546.pdf
 
 with open('./ptb.train.txt', 'r') as f:
     lines = f.readlines()
@@ -25,7 +27,9 @@ num_tokens = sum([len(sentence) for sentence in dataset])
 
 
 def discard(idx):
-    return random.uniform(0, 1) < 1 - math.sqrt(1e-4 * num_tokens / counter[idx_to_token[idx]])
+    z = 1000 * counter[idx_to_token[idx]] / num_tokens
+    return random.uniform(0, 1) > (np.sqrt(z) + 1) / z # in code
+    return random.uniform(0, 1) < 1 - np.sqrt(1e-4 * num_tokens / counter[idx_to_token[idx]]) # in paper
 
 subsampled_dataset = [[token for token in sentence if not discard(token)] for sentence in dataset]
 
@@ -91,7 +95,7 @@ def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
     return nd.batch_dot(v, u.swapaxes(1, 2))  # (512, 1, 60)
 
 
-def training_procedure(net, loss, lr, num_epochs):
+def training_procedure(net, loss, data_iter, lr, num_epochs):
     net.initialize(force_reinit=True)
     trainer = gluon.Trainer(net.collect_params(), 'adam',
                             {'learning_rate': lr})
@@ -176,11 +180,11 @@ def train():
 
     loss = gluon.loss.SigmoidBinaryCrossEntropyLoss()
 
-    training_procedure(net, loss, 0.01, 50)
+    training_procedure(net, loss, data_iter, 0.01, 50)
     save_mxnet_model(net, 'skipgram_embed', embed_size)
 
 def predict():
     net = load_mxnet_model('skipgram_embed')
     get_similar_tokens('customer', 3, net[0])
 
-predict()
+train()
