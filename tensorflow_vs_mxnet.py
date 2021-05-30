@@ -9,6 +9,7 @@ import tensorflow as tf # 2.5.0
 from tensorflow import keras
 
 import torch # 1.8.1
+
 import mxnet as mx # 1.8.0
 
 from sklearn.metrics import r2_score
@@ -140,6 +141,13 @@ def load_keras(X, Y, learning_rate):
     print(f'keras predict one average cost: {(time.time() - loaded) / Y_hat.size}s')
     print(f'keras r2 score: {r2_score(Y_hat, Y)}')
     print('keras percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
+
+
+class LSTMTORCH():
+    def __init__(self, num_hiddens, input_size):
+        super(LSTMTORCH, self).__init__()
+        torch.nn.LSTM(input_size=input_size, hidden_size=num_hiddens)
+
 
 
 class LSTMNet(mx.gluon.nn.Block):
