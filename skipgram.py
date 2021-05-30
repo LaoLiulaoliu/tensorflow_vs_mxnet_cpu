@@ -11,9 +11,24 @@ from mxnet import gluon, nd
 
 # https://arxiv.org/pdf/1310.4546.pdf
 
+def replace_punctuation(text):
+    text = text.replace('.', ' <PERIOD> ')
+    text = text.replace(',', ' <COMMA> ')
+    text = text.replace('"', ' <QUOTATION_MARK> ')
+    text = text.replace(';', ' <SEMICOLON> ')
+    text = text.replace('!', ' <EXCLAMATION_MARK> ')
+    text = text.replace('?', ' <QUESTION_MARK> ')
+    text = text.replace('(', ' <LEFT_PAREN> ')
+    text = text.replace(')', ' <RIGHT_PAREN> ')
+    text = text.replace('--', ' <HYPHENS> ')
+    text = text.replace('?', ' <QUESTION_MARK> ')
+    # text = text.replace('\n', ' <NEW_LINE> ')
+    text = text.replace(':', ' <COLON> ')
+    return text
+
 with open('./ptb.train.txt', 'r') as f:
     lines = f.readlines()
-    raw_dataset = [sentence.split() for sentence in lines]
+    raw_dataset = [replace_punctuation(sentence).split() for sentence in lines]
 
 
 counter = collections.Counter([token for sentence in raw_dataset for token in sentence])
