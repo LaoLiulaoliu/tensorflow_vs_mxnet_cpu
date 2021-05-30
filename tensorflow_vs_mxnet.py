@@ -143,10 +143,17 @@ def load_keras(X, Y, learning_rate):
     print('keras percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
 
 
-class LSTMTORCH():
+class LSTMTORCH(torch.nn.Module):
     def __init__(self, num_hiddens, input_size):
         super(LSTMTORCH, self).__init__()
-        torch.nn.LSTM(input_size=input_size, hidden_size=num_hiddens)
+        self.num_layers = 1
+        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=num_hiddens, batch_first=True)
+
+    def forward(self, inputs):
+        batch_size = inputs.size(1)
+        h0 = torch.rand(self.num_layers, batch_size, self.hidden_size),
+        c0 = torch.rand(self.num_layers, batch_size, self.hidden_size)
+        out, hidden = self.lstm(inputs, h0, c0)
 
 
 
