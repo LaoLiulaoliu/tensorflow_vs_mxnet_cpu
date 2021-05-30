@@ -5,10 +5,11 @@ import time
 import pickle
 from datetime import datetime, timedelta
 
-import tensorflow as tf
+import tensorflow as tf # 2.5.0
 from tensorflow import keras
 
-import mxnet as mx
+import torch # 1.8.1
+import mxnet as mx # 1.8.0
 
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
@@ -226,7 +227,7 @@ def load_mxnet_model(fname):
         model = pickle.load(fd)
     input_size = model.pop(INPUT_SIZE_STR)
 
-    net = LSTMNetBetter(64, input_size)
+    net = LSTMNet(64, input_size)
     params = net._collect_params_with_prefix()
     for name in model:
         if name in params:
@@ -237,7 +238,7 @@ def load_mxnet_model(fname):
 
 def run_mxnet(train_x, train_y, num_epochs, learning_rate, validation_x=None, validation_y=None):
     input_size = train_x.shape[2]
-    net = LSTMNetBetter(64, input_size)
+    net = LSTMNet(64, input_size)
     net.initialize(mx.init.Xavier())
     net.hybridize()
 
