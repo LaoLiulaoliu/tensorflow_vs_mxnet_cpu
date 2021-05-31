@@ -155,14 +155,29 @@ class LSTMTORCH(torch.nn.Module):
         self.input_size = input_size
         self.hidden_size = num_hiddens
         self.num_layers = 1
-        self.lstm = torch.nn.LSTM(self.input_size, self.hidden_size, self.num_layers)
-        h0 = torch.rand(self.num_layers, self.batch_size, self.hidden_size)
-        c0 = torch.rand(self.num_layers, self.batch_size, self.hidden_size)
+        self.encoder = torch.nn.LSTM(self.input_size, self.hidden_size, self.num_layers)
+        self.middle = torch.nn.Linear(1)
+        self.drop = torch.nn.Dropout(p=0.01)
+        self.decoder = torch.nn.Linear(1)
 
     def forward(self, inputs):
         batch_size = inputs.size(1)
-        outs, hidden = self.lstm(inputs, h0, c0)
+        h0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        c0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        output, hidden = self.encoder(inputs, (h0, c0))
+        outs = self.decoder(self.drop(self.middle(output)))
         return outs
+
+def train_torch(train_x, train_y, batch_size, num_epochs, lr):
+    criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+    net = LSTMTORCH()
+    for epoch in range(num_epochs):
+        optimizer.zero_grad()
+        outputs = net(train_x)
+        loss = criterion(outputs, train_y)
+        loss.backward()
+        optimizer.step()
 
 
 
