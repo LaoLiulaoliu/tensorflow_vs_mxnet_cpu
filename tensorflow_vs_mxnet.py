@@ -144,16 +144,25 @@ def load_keras(X, Y, learning_rate):
 
 
 class LSTMTORCH(torch.nn.Module):
+    """
+        input:   (1077, 1, 51)
+        LSTM:    (51, 64) -> (1077, 1, 64)
+        dense:            -> (1077, 1)
+        decoder:          -> (1077, 1)
+    """
     def __init__(self, num_hiddens, input_size):
         super(LSTMTORCH, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = num_hiddens
         self.num_layers = 1
-        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=num_hiddens, batch_first=True)
+        self.lstm = torch.nn.LSTM(self.input_size, self.hidden_size, self.num_layers)
+        h0 = torch.rand(self.num_layers, self.batch_size, self.hidden_size)
+        c0 = torch.rand(self.num_layers, self.batch_size, self.hidden_size)
 
     def forward(self, inputs):
         batch_size = inputs.size(1)
-        h0 = torch.rand(self.num_layers, batch_size, self.hidden_size),
-        c0 = torch.rand(self.num_layers, batch_size, self.hidden_size)
-        out, hidden = self.lstm(inputs, h0, c0)
+        outs, hidden = self.lstm(inputs, h0, c0)
+        return outs
 
 
 
