@@ -387,8 +387,8 @@ def main():
     # keras r2 score: 0.6448245046829568
     # keras percentage error: 2.8355%
     # whole time: 161.03141260147095
-    learning_rate = 1e-4
-    num_epochs = 100
+    learning_rate = 0.0001
+    num_epochs = 500
     train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
     load_keras(validation_x, validation_y, learning_rate)
     print(f'keras whole time: {time.time() - s}')
