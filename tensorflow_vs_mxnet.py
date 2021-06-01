@@ -193,13 +193,21 @@ def train_torch(train_x, train_y, batch_size, num_epochs, lr, validation_x=None,
         optimizer.step()
 
         if validation_x is not None:
-            validation_loss = loss(net(validation_x), validation_y).mean().sqrt()
+            validation_loss = criterion(net(validation_x), validation_y.float())
+            validation_loss = validation_loss.mean().sqrt()
             msg = 'epoch %d, train_loss %.4f, validation_loss %.4f, %.4fs/epoch' % (
             epoch + 1, loss.mean().sqrt(), validation_loss, (time.time() - start) / (epoch + 1))
         else:
             msg = 'epoch %d, train_loss %.4f, %.4fs/epoch' % (epoch + 1, loss.mean().sqrt(), (time.time() - start) / (epoch + 1))
         if epoch & 63 == 0:
             print(msg)
+
+    torch.save(net, 'torch.pt')
+
+def load_torch(validation_x, validation_y):
+    net = torch.load('torch.pt')
+    net.eval()
+    print('net: ', net)
 
 
 class LSTMNet(mx.gluon.nn.Block):
@@ -372,7 +380,13 @@ def main():
 #    load_keras(validation_x, validation_y, learning_rate)
 #    print(f'keras whole time: {time.time() - s}')
 
-    train_torch(train_x, train_y, batch_size, num_epochs, learning_rate)
+    s = time.time()
+    learning_rate = 0.0002
+    num_epochs = 1000
+    train_torch(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
+    load_torch(validation_x, validation_y)
+    print(f'torch whole time: {time.time() - s}')
+    
     # mxnet load weights cost: 0.004607439041137695s
     # mxnet predict one average cost: 8.711907856975757e-06
     # mxnet r2 score: 0.32217135154990173
