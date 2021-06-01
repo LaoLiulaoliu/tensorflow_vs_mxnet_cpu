@@ -202,12 +202,22 @@ def train_torch(train_x, train_y, batch_size, num_epochs, lr, validation_x=None,
         if epoch & 63 == 0:
             print(msg)
 
-    torch.save(net, 'torch.pt')
+    torch.save(net.state_dict(), 'torch.pt')
 
 def load_torch(validation_x, validation_y):
-    net = torch.load('torch.pt')
+    start = time.time()
+    net = LSTMTORCH(64, input_size)
+    net.load_state_dict(torch.load('torch.pt'))
     net.eval()
-    print('net: ', net)
+
+    loaded = time.time()
+    print(f'torch load weights cost: {loaded - start}s')
+
+    Y_hat = net(torch.tensor(validation_x))
+    print(f'torch predict one average cost: {(time.time() - loaded) / Y_hat.size}s')
+    print(f'torch r2 score: {r2_score(Y_hat, validation_y)}')
+    print('torch percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
+
 
 
 class LSTMNet(mx.gluon.nn.Block):
@@ -375,13 +385,13 @@ def main():
     # keras percentage error: 2.8355%
     # whole time: 161.03141260147095
     learning_rate = 1e-4
-    num_epochs = 10
-#    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
-#    load_keras(validation_x, validation_y, learning_rate)
-#    print(f'keras whole time: {time.time() - s}')
+    num_epochs = 100
+    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
+    load_keras(validation_x, validation_y, learning_rate)
+    print(f'keras whole time: {time.time() - s}')
 
     s = time.time()
-    learning_rate = 0.003
+    learning_rate = 0.004
     num_epochs = 500
     train_torch(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
     load_torch(validation_x, validation_y)
