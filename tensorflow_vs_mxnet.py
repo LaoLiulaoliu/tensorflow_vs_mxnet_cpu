@@ -206,6 +206,7 @@ def train_torch(train_x, train_y, batch_size, num_epochs, lr, validation_x=None,
 
 def load_torch(validation_x, validation_y):
     start = time.time()
+    input_size = validation_x.shape[2]
     net = LSTMTORCH(64, input_size)
     net.load_state_dict(torch.load('torch.pt'))
     net.eval()
@@ -214,9 +215,11 @@ def load_torch(validation_x, validation_y):
     print(f'torch load weights cost: {loaded - start}s')
 
     Y_hat = net(torch.tensor(validation_x))
-    print(f'torch predict one average cost: {(time.time() - loaded) / Y_hat.size}s')
+    print(f'torch predict one average cost: {(time.time() - loaded) / Y_hat.size().numel()}s')
+
+    Y_hat = Y_hat.detach().numpy()
     print(f'torch r2 score: {r2_score(Y_hat, validation_y)}')
-    print('torch percentage error: {:.4f}%'.format(((Y_hat - Y) / Y).mean() * 100))
+    print('torch percentage error: {:.4f}%'.format(((Y_hat - validation_y) / validation_y).mean() * 100))
 
 
 
