@@ -145,10 +145,11 @@ def load_keras(X, Y, learning_rate):
 
 class LSTMTORCH(torch.nn.Module):
     """
-        input:   (1077, 1, 51)
-        LSTM:    (51, 64) -> (1077, 1, 64)
-        dense:            -> (1077, 1)
-        decoder:          -> (1077, 1)
+        input:   (1148, 1, 43)
+          h0/c0: [1, 1, 64]
+        LSTM:    (43, 64) -> (1148, 1, 64)
+        dense:            -> (1148, 1, 1)
+        decoder:          -> (1148, 1, 1)
     """
     def __init__(self, num_hiddens, input_size):
         super(LSTMTORCH, self).__init__()
@@ -156,26 +157,33 @@ class LSTMTORCH(torch.nn.Module):
         self.hidden_size = num_hiddens
         self.num_layers = 1
         self.encoder = torch.nn.LSTM(self.input_size, self.hidden_size, self.num_layers)
-        self.middle = torch.nn.Linear(1)
+        self.middle = torch.nn.Linear(64, 1)
         self.drop = torch.nn.Dropout(p=0.01)
-        self.decoder = torch.nn.Linear(1)
+        self.decoder = torch.nn.Linear(1, 1)
 
     def forward(self, inputs):
-        batch_size = inputs.size(1)
-        h0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
-        c0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        batch_size = inputs.shape[1]
+        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
+        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
         output, hidden = self.encoder(inputs, (h0, c0))
         outs = self.decoder(self.drop(self.middle(output)))
-        return outs
+        first_dim = outs.size(0)
+        return outs.reshape(first_dim, 1)
+
 
 def train_torch(train_x, train_y, batch_size, num_epochs, lr):
+    train_x_t = torch.tensor(train_x)
+    train_y_t = torch.tensor(train_y)
+
+    input_size = train_x.shape[2]
+    net = LSTMTORCH(64, input_size)
     criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-    net = LSTMTORCH()
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+
     for epoch in range(num_epochs):
         optimizer.zero_grad()
-        outputs = net(train_x)
-        loss = criterion(outputs, train_y)
+        outputs = net(train_x_t)
+        loss = criterion(outputs, train_y_t.float())
         loss.backward()
         optimizer.step()
 
@@ -347,10 +355,11 @@ def main():
     # whole time: 161.03141260147095
     learning_rate = 1e-4
     num_epochs = 10
-    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
-    load_keras(validation_x, validation_y, learning_rate)
-    print(f'keras whole time: {time.time() - s}')
+#    train_keras(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
+#    load_keras(validation_x, validation_y, learning_rate)
+#    print(f'keras whole time: {time.time() - s}')
 
+    train_torch(train_x, train_y, batch_size, num_epochs, learning_rate)
     # mxnet load weights cost: 0.004607439041137695s
     # mxnet predict one average cost: 8.711907856975757e-06
     # mxnet r2 score: 0.32217135154990173
