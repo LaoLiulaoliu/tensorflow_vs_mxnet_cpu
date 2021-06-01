@@ -381,8 +381,8 @@ def main():
 #    print(f'keras whole time: {time.time() - s}')
 
     s = time.time()
-    learning_rate = 0.001
-    num_epochs = 1000
+    learning_rate = 0.003
+    num_epochs = 500
     train_torch(train_x, train_y, batch_size, num_epochs, learning_rate, validation_x, validation_y)
     load_torch(validation_x, validation_y)
     print(f'torch whole time: {time.time() - s}')
