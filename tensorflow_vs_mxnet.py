@@ -171,9 +171,14 @@ class LSTMTORCH(torch.nn.Module):
         return outs.reshape(first_dim, 1)
 
 
-def train_torch(train_x, train_y, batch_size, num_epochs, lr):
+def train_torch(train_x, train_y, batch_size, num_epochs, lr, validation_x=None, validation_y=None):
+    start = time.time()
     train_x_t = torch.tensor(train_x)
     train_y_t = torch.tensor(train_y)
+    
+    if validation_x is not None:
+        validation_x = torch.tensor(validation_x)
+        validation_y = torch.tensor(validation_y)
 
     input_size = train_x.shape[2]
     net = LSTMTORCH(64, input_size)
@@ -187,6 +192,14 @@ def train_torch(train_x, train_y, batch_size, num_epochs, lr):
         loss.backward()
         optimizer.step()
 
+        if validation_x is not None:
+            validation_loss = loss(net(validation_x), validation_y).mean().sqrt()
+            msg = 'epoch %d, train_loss %.4f, validation_loss %.4f, %.4fs/epoch' % (
+            epoch + 1, loss.mean().sqrt(), validation_loss, (time.time() - start) / (epoch + 1))
+        else:
+            msg = 'epoch %d, train_loss %.4f, %.4fs/epoch' % (epoch + 1, loss.mean().sqrt(), (time.time() - start) / (epoch + 1))
+        if epoch & 63 == 0:
+            print(msg)
 
 
 class LSTMNet(mx.gluon.nn.Block):
